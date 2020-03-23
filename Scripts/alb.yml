@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template for Application Load Balancer
+  
+Parameters:
+  SubnetsList:
+    Description: Lista de subnets para el ALB
+    Type: CommaDelimitedList
+
+  LBName:
+    Description: Load Balancer's name
+    Type: String
+    Default: rdhrALB
+  
+  SecurityGroup:
+    Description: Select the Security Group to apply to the Application Load Balancer
+    Type: String
+  
+  TGName:
+    Description: Target group's name
+    Type: String
+    Default: rdhrTG
+
+  VPC:
+    Type: String
+    Description: Choose which VPC the Application Load Balancer should be deployed to
+  
+  
+Resources:
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Name: !Ref LBName
+      Subnets: !Ref SubnetsList
+      SecurityGroups:
+        - !Ref SecurityGroup
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - LoadBalancer
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Ref TGName
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+  
+Outputs:
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !Ref LoadBalancer
+
+  LoadBalancerUrl:
+    Description: The URL of the ALB
+    Value: !GetAtt LoadBalancer.DNSName
+
+  Listener:
+    Description: A reference to a port 80 listener
+    Value: !Ref LoadBalancerListener
+
+  TargetGroup:
+    Description: Target group created
+    Value: !Ref DefaultTargetGroup

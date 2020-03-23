@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Script to create Launch Configurations and an Autoscaling Group
+  
+Parameters:
+  Ami:
+    Description: Ami to use to create the EC2 instances
+    Type: String
+    Default: "ami-014a2e30da708ee8b"
+  
+  SecurityGroup:
+    Description: Security Group to use in the instances created
+    Type: String
+  
+  InstancesType:
+    Description: Instance Type to use
+    Type: String
+    Default: "t2.micro"
+
+  EC2KeyName:
+    Description: Keys that will be used to connect to the EC2 instances
+    Type: String
+    Default: rdhrKeys
+
+  ClusterName:
+    Description: Cluster´s Name to which the instances will be attached
+    Type: String
+
+  AutoScalingGroupName: 
+    Description: Is the Autoscaling Group´s name
+    Type: String
+    Default: rdhrAutoScalingGroup
+
+  DesireInstances: 
+    Description: the aumount of instances that will be online
+    Type: String
+    Default: "2"
+  
+  SubnetsList:
+    Description: Lista de subnets para el ALB
+    Type: CommaDelimitedList
+
+  TargetGroup:
+    Description: Target group
+    Type: String
+
+  AvailibityZone1:
+    Description: Availibity zone 1
+    Type: String
+    Default: us-west-2b
+
+  AvailibityZone2:
+    Description: Availibity zone 2
+    Type: String
+    Default: us-west-2a
+
+
+Resources:
+  LaunchConfig: 
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties: 
+      AssociatePublicIpAddress: true
+      ImageId: !Ref Ami
+      IamInstanceProfile: !Ref ECSInstanceProfile
+      SecurityGroups: 
+        - !Ref SecurityGroup
+      InstanceType: !Ref InstancesType
+      KeyName: !Ref EC2KeyName
+      UserData: 
+       Fn::Base64: 
+            !Sub |
+            #!/bin/bash
+            echo ECS_CLUSTER=${ClusterName} >> /etc/ecs/ecs.config
+
+  AutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties: 
+      AutoScalingGroupName: !Ref AutoScalingGroupName
+      AvailabilityZones: 
+        - !Ref AvailibityZone2
+        - !Ref AvailibityZone1
+      DesiredCapacity: !Ref DesireInstances
+      LaunchConfigurationName: !Ref LaunchConfig
+      MaxSize: "4"
+      MinSize: "1"
+      TargetGroupARNs: 
+        - !Ref TargetGroup
+      VPCZoneIdentifier: !Ref SubnetsList
+
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub rdhrECSRole-${AWS::Region}
+      AssumeRolePolicyDocument: |
+        {
+            "Statement": [{
+                "Action": "sts:AssumeRole",
+                "Effect": "Allow",
+                "Principal": {
+                    "Service": "ec2.amazonaws.com"
+                }
+            }]
+        }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument: |
+            {
+                "Statement": [{
+                    "Effect": "Allow",
+                    "Action": [
+                        "ecs:CreateCluster",
+                        "ecs:DeregisterContainerInstance",
+                        "ecs:DiscoverPollEndpoint",
+                        "ecs:Poll",
+                        "ecs:RegisterContainerInstance",
+                        "ecs:StartTelemetrySession",
+                        "ecs:Submit*",
+                        "ecr:BatchCheckLayerAvailability",
+                        "ecr:BatchGetImage",
+                        "ecr:GetDownloadUrlForLayer",
+                        "ecr:GetAuthorizationToken"
+                    ],
+                    "Resource": "*"
+                }]
+            }
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ECSRole

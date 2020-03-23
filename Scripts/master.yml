@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is the master file to create an ecs cluster
+  
+Parameters:
+  ClusterName:
+    Description: Is the cluster's name
+    Type: String
+    Default: rdhrCluster
+  
+  AvailibityZone1:
+    Description: Availibituy zone 1
+    Type: String
+    Default: us-west-2b
+
+  AvailibityZone2:
+    Description: Availibituy zone 2
+    Type: String
+    Default: us-west-2a
+  
+  Buck:
+    Description: Bucket en el que estan almacenados los yml
+    Type: String
+    Default: rdhr-ecs-bucket.s3-us-west-2.amazonaws.com
+
+  ServiceName:
+    Description: the cluster's service's name
+    Type: String
+    Default: rdhrService
+  
+Resources:
+  MyVPC: 
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub https://${Buck}/vpcCloudFormation.yml
+      Parameters:
+        AvailibityZone1: !Ref AvailibityZone1
+        AvailibityZone2: !Ref AvailibityZone2
+  
+  ApplicationLoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub https://${Buck}/alb.yml
+      Parameters:
+        VPC: !GetAtt MyVPC.Outputs.VPCID
+        SubnetsList: !GetAtt MyVPC.Outputs.PublicSubnets
+        SecurityGroup: !GetAtt MyVPC.Outputs.WPSecurityGroup
+  
+  Cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub https://${Buck}/cluster.yml
+      TimeoutInMinutes: 20
+      Parameters:
+        ClusterName: !Ref ClusterName
+
+  LaunchConfig:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub https://${Buck}/launchConfiguration.yml
+      Parameters:
+        SecurityGroup: !GetAtt MyVPC.Outputs.WPSecurityGroup
+        ClusterName: !Ref ClusterName
+        SubnetsList: !GetAtt MyVPC.Outputs.PublicSubnets
+        TargetGroup: !GetAtt ApplicationLoadBalancer.Outputs.TargetGroup
+        AvailibityZone1: !Ref AvailibityZone1
+        AvailibityZone2: !Ref AvailibityZone2
+        TargetGroup: !GetAtt ApplicationLoadBalancer.Outputs.TargetGroup
+
+  TaskDefinition:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+        - LaunchConfig
+    Properties: 
+      TemplateURL: !Sub https://${Buck}/taskDefinition.yml
+      Parameters:
+        ClusterName: !Ref ClusterName
+        TargetGroup: !GetAtt ApplicationLoadBalancer.Outputs.TargetGroup
+

@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is the template to create task definitions and a service for a given cluster
+  
+Parameters:
+  ImageName:
+    Description: Image's name to use into the containers
+    Type: String
+    Default: "492266378106.dkr.ecr.us-west-2.amazonaws.com/ricardo"
+
+  Memory:
+    Description: Amount of memory to use
+    Type: String
+    Default: "128"
+
+  ServiceName:
+    Description: Service's Name
+    Type: String
+    Default: rdhrService
+
+  AppContainerPort:
+    Type: Number
+    Description: Container port of app requiring ELB exposure
+    Default: '80'
+
+  AppHostPort:
+    Type: Number
+    Description: Host port of app requiring ELB exposure
+    Default: '80'
+
+  TargetGroup:
+    Description: The target group to which the containers will listen to
+    Type: String
+
+  ClusterName:
+    Description: Cluster on which the service will run 
+    Type: String
+
+  DesiredCount:
+    Description: Amount of containers online
+    Type: Number
+    Default: 2
+  
+Resources:
+  Taskdefinition: 
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      RequiresCompatibilities:
+        - "EC2"
+      ContainerDefinitions: 
+        - 
+          Name: !Ref ServiceName
+          Image: !Ref ImageName
+          Memory: !Ref Memory
+          Essential: true
+          PortMappings: 
+            - 
+              ContainerPort: !Ref AppContainerPort
+              HostPort: !Ref AppHostPort
+  
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ClusterName
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: !Ref DesiredCount
+      LoadBalancers:
+        - ContainerName: !Ref ServiceName
+          ContainerPort: !Ref AppContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      PlacementStrategies:
+        - Type: binpack
+          Field: memory
+        - Type: spread
+          Field: host
+      TaskDefinition: !Ref Taskdefinition
+      ServiceName: !Ref ServiceName

@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template for ECS Cluster Creation
+  
+Parameters:
+  ClusterName:
+    Description: Cluster's Name
+    Type: String
+    Default: rdhrCluster
+
+  
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName: !Ref ClusterName
+  
+
+Outputs:
+   ECSCluster:
+    Description: La referencia del cluster creada
+    Value: !Ref Cluster
